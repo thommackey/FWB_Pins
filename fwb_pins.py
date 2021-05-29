@@ -1,7 +1,8 @@
 """
-PinBot - Community Curation within the FWB Discord.
-As users drop the 📌 emoji on valuable posts, the posts are archived in a database with rich discord data.
-These posts are also fed into an 'editors channel' in FWB where our gang of editors can review.
+FWB Pins - Community Curation ~ Airtable Functionality Removed ~
+As users drop the 📌 emoji on valuable posts, the posts are archived in a review channel.
+
+Written by Dexter Tortoriello // @houses for Friends With Benefits
 """
 import discord
 from discord.utils import get
