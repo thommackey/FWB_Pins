@@ -1,4 +1,4 @@
-# FWB Pins
+# FWB Pins 📌
 
 ## Getting Started
 - Create a new Application in the [Discord developers portal](https://discord.com/developers/applications)
