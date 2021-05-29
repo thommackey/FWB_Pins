@@ -1,4 +1,5 @@
-# PinBot
+# FWB Pins
+
 - Create a new Application in the [Discord developers portal](https://discord.com/developers/applications)
 - Clone this repo to your local environment.
 - Run ```pip install Discord```
