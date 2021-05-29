@@ -71,7 +71,7 @@ async def on_reaction_add(reaction, user):
 
 
         message_text = reaction.message.content
-        editor_channel = client.get_channel(839991951344009237) #Change editors channel here
+        editor_channel = client.get_channel(log_channel) #Change editors channel here
 
         if editor_channel is None:
             await reaction.message.channel.send(f'Message archiving failed at {reaction.message.created_at}. Please '
