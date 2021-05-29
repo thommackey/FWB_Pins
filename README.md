@@ -14,4 +14,4 @@
 ## Functionality
 Once running, you will be able to pin messages with both the custom emoji you setup, as well as the native 📌 emoji. The messages you pin will be reposted with their information in the review channel. Additionally, any messages with 15+ reactions, will be pinned automatically. This number can be changed in the ```fwb_pins.py``` file. 
 
-* Note that the bot will not recognize any messages sent before it was started/restarted. You will likely want to host this on Heroku so it's always on. 
+The bot will not recognize any messages sent before it was started/restarted. You will likely want to host this on Heroku so it's always on. 
