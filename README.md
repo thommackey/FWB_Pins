@@ -6,4 +6,4 @@
 - Choose a custom emoji you will use to Pin things in your discord. The 📌 emoji will work as well by default.
 - Edit the text files, deleting everything there and replacing with your information.
 - Invite the bot to your server and give it permission to access all the channels you're pinning from, as well as the review channel where pinned messages will be posted.
-- Run pin_bot_lite.py to start the bot
+- Run ```Python3 pin_bot_lite.py``` to start the bot
