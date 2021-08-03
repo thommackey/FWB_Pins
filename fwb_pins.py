@@ -4,109 +4,98 @@ As users drop the 📌 emoji on valuable posts, the posts are archived in a revi
 
 Written by Dexter Tortoriello // @houses for Friends With Benefits
 """
-import discord
-from discord.utils import get
+
+import logging
 from discord.ext import commands
 
+# logging setup (I hate how much boilerplate this is!)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+consoleHandler = logging.StreamHandler()
+formatter = logging.Formatter('%(asctime)s  %(name)s  %(levelname)s: %(message)s', datefmt="%Y-%m-%dT%H:%M:%S%z")
+consoleHandler.setFormatter(formatter)
+logger.addHandler(consoleHandler)
 
-# Loads Discord Token from file in parent folder
+client = commands.Bot(command_prefix = "!")
+
+## Discord interaction params
 with open("key.txt", "r") as file:
     token = file.read().replace('\n', '')
 
 with open("review_channel_id.txt", "r") as file:
-    log_channel = int(file.read().replace('\n', ''))
+    review_channel_id = int(file.read().replace('\n', ''))
 
 with open("custom_emoji_id.txt", "r") as file:
-    custom_emoji_id = int(file.read().replace('\n', ''))
+    custom_emoji_ids = [int(s.strip()) for s in file.read().split('\n')]
 
-client = commands.Bot(command_prefix = "!")
-pin_req = 1     #mimimum number of 📌 reactions required to pin message.
+## Set up the emoji we're using as triggers
+pin_emoji = "📌" # That's U+1F4CC if you need to know
+trigger_emojis = {pin_emoji} # We'll add to this set later, once we're connected
+
+## Thresholds
+trigger_react_req = 1 # Minimum total number of trigger reacts required to pin message
+total_react_req = 15 # Minimum total number of any reacts required to pin message
 
 
 @client.event  # event decorator/wrapper
 async def on_ready():
-    print(f"Logged in as {client.user}")
+    logger.info(f"Logged in as {client.user}")
+
+    for emoji_id in custom_emoji_ids:
+        custom_emoji = client.get_emoji(emoji_id)
+        if custom_emoji is None:
+            logger.warning(f"Failed to retrieve custom emoji id {emoji_id}")
+        else:
+            trigger_emojis.add(custom_emoji)
+
 
 @client.event
 async def on_reaction_add(reaction, user):
 
-    channel = reaction.message.channel 
-    emoji_react = "📌"
-    custom_emoji = client.get_emoji(custom_emoji_id)  # Your custom Emoji
-    emojicount = 0
-
     message_id = str(reaction.message.id)
 
-    # Get total reactions for a message and if over 15 treat it the same as a pin
-    total_reacts = reaction.message.reactions
-    total_count = 0
-    for react in total_reacts:
-        total_count += react.count
+    trigger_react_count = sum(react.count for react in reaction.message.reactions if react.emoji in trigger_emojis)
+    total_react_count = sum(react.count for react in reaction.message.reactions)
+    logger.info(f"Found {trigger_react_count} trigger reacts, {total_react_count} total reacts on msg {message_id}")
 
-    # Starts code for pinned messages and sets up total emoji for autopinning
-    if reaction.emoji == emoji_react or reaction.emoji == custom_emoji or total_count == 15: #Change this number to change the amount of reacts a post needs to get 'pinned'
+    hard_pin = trigger_react_count == trigger_react_req and total_react_count == trigger_react_req
+    soft_pin = total_react_count == total_react_req
 
-        if reaction.emoji == custom_emoji or reaction.emoji == emoji_react:
-            hard_pin = True
-        else:
-            hard_pin = False
-        
+    if hard_pin ^ soft_pin: # ^ is XOR, i.e. this will only trigger if it's either hard or soft but not both, to prevent dupes
+        pin_reason = f"got {trigger_react_count} trigger react(s)" if hard_pin and not soft_pin else f"got {total_react_count} total reacts"
+        logger.info(f"Pinning msg {message_id} because it {pin_reason}")
 
-        try:
-            # Counts how many times pin emoji was used. This prevents duplicates.
-            pin_react = get(reaction.message.reactions, emoji=emoji_react)
-            custom_pin = get(reaction.message.reactions, emoji=custom_emoji)
-            try:
-                custom_pin = custom_pin.count
-            except:
-                emojicount = pin_react.count
+        review_channel = client.get_channel(review_channel_id) #Change editors channel here
 
-            if emojicount > pin_req or custom_pin > pin_req:
-                print("Stopped from pinning twice")
-                print(emojicount)
-                return
-
-        except Exception as ex:
-            print("Pure Emoji Pin")
-
-
-        message_text = reaction.message.content
-        editor_channel = client.get_channel(log_channel) #Change editors channel here
-
-        if editor_channel is None:
+        if review_channel is None:
             await reaction.message.channel.send(f'Message archiving failed at {reaction.message.created_at}. Please '
                                            f'add the id for your review channel to the text file with this code.')
             return
 
-        link_index = message_text.find('https://' or 'http://' or 'www.')
-
-        link = ""
-        if link_index != -1:
-            link_end_index = message_text.find(' ', link_index)
-            link = message_text[link_index:(link_end_index if link_end_index != -1 else None)]
-
-        category = str(reaction.message.channel.category.name)
-        message_id = str(reaction.message.id)
-        author_id = str(reaction.message.author.id)
-        author_name = str(reaction.message.author.name)
-        pinner_name = str(user.name)
-        pinner_id = str(user.id)
-        pin_channel = str(reaction.message.channel.name)
-        message_url = reaction.message.jump_url
-
-
-        await editor_channel.send(f'📌 Pinned post from {reaction.message.author.mention} '
-                                 f'in <#{reaction.message.channel.id}>: 📌\n\n'
+        await review_channel.send(f'📌 Pinned post from {reaction.message.author.mention} '
+                                 f'in <#{reaction.message.channel.id}> '
+                                 f'because it {pin_reason}! 📌\n\n'
                                  f'{reaction.message.content}\n\n'
-                                 f'Jump to message: {message_url}\n\n'
+                                 f'Jump to message: {reaction.message.jump_url}\n\n'
                                  f'------------------------------------------------')
 
-        # Get total emojis of all type:
-        total_reacts = reaction.message.reactions
-        total_count = 0
-        for react in total_reacts:
-            total_count += react.count
-        print('Total Reacts: ' + str(total_count))
+        # ## I'm guessing these were used for structured data capture
+        # ## Leaving them in for now even though they're not used, might be handy later
 
+        # message_text = reaction.message.content
+        # link_index = message_text.find('https://' or 'http://' or 'www.')
+        # link = ""
+        # if link_index != -1:
+        #     link_end_index = message_text.find(' ', link_index)
+        #     link = message_text[link_index:(link_end_index if link_end_index != -1 else None)]
 
-client.run(token)
+        # category = str(reaction.message.channel.category.name)
+        # author_id = str(reaction.message.author.id)
+        # author_name = str(reaction.message.author.name)
+        # pinner_name = str(user.name)
+        # pinner_id = str(user.id)
+        # pin_channel = str(reaction.message.channel.name)
+        # message_url = reaction.message.jump_url
+
+if __name__ == "__main__":
+    client.run(token)
