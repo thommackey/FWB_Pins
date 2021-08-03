@@ -56,7 +56,7 @@ async def on_reaction_add(reaction, user):
 
     trigger_react_count = sum(react.count for react in reaction.message.reactions if react.emoji in trigger_emojis)
     total_react_count = sum(react.count for react in reaction.message.reactions)
-    logger.info(f"Found {trigger_react_count} trigger reacts, {total_react_count} total reacts on msg {message_id}")
+    logger.debug(f"Found {trigger_react_count} trigger reacts, {total_react_count} total reacts on msg {message_id}")
 
     hard_pin = trigger_react_count == trigger_react_req and total_react_count == trigger_react_req
     soft_pin = total_react_count == total_react_req
