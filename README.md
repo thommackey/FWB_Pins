@@ -1,7 +1,9 @@
 # FWB Pins 📌
+##### Curation by Committee
 
 ## Getting Started
 - Create a new Application in the [Discord developers portal](https://discord.com/developers/applications)
+
 - Clone this repo to your local environment.
 - Run ```pip install Discord```
 - Create a channel in your Discord server for the bot to post pinned messages. Paste the channel ID into ```review_channel.txt```
