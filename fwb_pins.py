@@ -6,6 +6,7 @@ Written by Dexter Tortoriello // @houses for Friends With Benefits
 """
 
 import logging
+import os
 from discord.ext import commands
 
 # logging setup (I hate how much boilerplate this is!)
@@ -18,15 +19,22 @@ logger.addHandler(consoleHandler)
 
 client = commands.Bot(command_prefix = "!")
 
-## Discord interaction params
-with open("key.txt", "r") as file:
-    token = file.read().replace('\n', '')
+# Discord interaction params
+## These are stored locally in a .env file which makes it easy to use `heroku local` for local dev
+## á la https://devcenter.heroku.com/articles/heroku-local#set-up-your-local-environment-variables
+## For deployment, you'll need to add the env vars to your Heroku app,
+## á la https://devcenter.heroku.com/articles/config-vars#managing-config-vars
 
-with open("review_channel_id.txt", "r") as file:
-    review_channel_id = int(file.read().replace('\n', ''))
+## The Discord bot token, from the Discord application Bot page
+token = os.getenv("DISCORD_BOT_TOKEN")
 
-with open("custom_emoji_id.txt", "r") as file:
-    custom_emoji_ids = [int(s.strip()) for s in file.read().split('\n')]
+## I'd really like all these params to be controlled by ! commands to the bot itself,
+## Something like `!pin :some_emoji_here:` which would funnel posts with that react to that channel.
+## But for now, we'll use env vars, because that's better than hard-coding, makes for easier Heroku deployment, 
+## and doesn't require writing bot commands & maintaining state.
+
+pin_channel_id = int(os.getenv("DISCORD_PIN_CHANNEL_ID"))
+custom_emoji_ids = [int(s) for s in os.getenv("DISCORD_CUSTOM_EMOJI_IDS").split(",")]
 
 ## Set up the emoji we're using as triggers
 pin_emoji = "📌" # That's U+1F4CC if you need to know
@@ -65,14 +73,15 @@ async def on_reaction_add(reaction, user):
         pin_reason = f"got {trigger_react_count} trigger react(s)" if hard_pin and not soft_pin else f"got {total_react_count} total reacts"
         logger.info(f"Pinning msg {message_id} because it {pin_reason}")
 
-        review_channel = client.get_channel(review_channel_id) #Change editors channel here
+        pin_channel = client.get_channel(pin_channel_id) #Change editors channel here
 
-        if review_channel is None:
+        if pin_channel is None:
+            logger.warning(f"Failed to send message. Looked for channel id {pin_channel_id}, but found channel object {pin_channel}.")
             await reaction.message.channel.send(f'Message archiving failed at {reaction.message.created_at}. Please '
                                            f'add the id for your review channel to the text file with this code.')
             return
 
-        await review_channel.send(f'📌 Pinned post from {reaction.message.author.mention} '
+        await pin_channel.send(f'📌 Pinned post from {reaction.message.author.mention} '
                                  f'in <#{reaction.message.channel.id}> '
                                  f'because it {pin_reason}! 📌\n\n'
                                  f'{reaction.message.content}\n\n'
@@ -98,4 +107,5 @@ async def on_reaction_add(reaction, user):
         # message_url = reaction.message.jump_url
 
 if __name__ == "__main__":
+    logger.info(f"Starting up {__name__}")
     client.run(token)
