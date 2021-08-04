@@ -7,6 +7,7 @@ Written by Dexter Tortoriello // @houses for Friends With Benefits
 
 import logging
 import os
+from collections import defaultdict
 from discord.ext import commands
 
 # logging setup (I hate how much boilerplate this is!)
@@ -28,17 +29,55 @@ client = commands.Bot(command_prefix = "!")
 ## The Discord bot token, from the Discord application Bot page
 token = os.getenv("DISCORD_BOT_TOKEN")
 
-## I'd really like all these params to be controlled by ! commands to the bot itself,
-## Something like `!pin :some_emoji_here:` which would funnel posts with that react to that channel.
-## But for now, we'll use env vars, because that's better than hard-coding, makes for easier Heroku deployment, 
-## and doesn't require writing bot commands & maintaining state.
-
+## Only until the bot commands work
 pin_channel_id = int(os.getenv("DISCORD_PIN_CHANNEL_ID"))
 custom_emoji_ids = [int(s) for s in os.getenv("DISCORD_CUSTOM_EMOJI_IDS").split(",")]
 
 ## Set up the emoji we're using as triggers
 pin_emoji = "📌" # That's U+1F4CC if you need to know
-trigger_emojis = {pin_emoji} # We'll add to this set later, once we're connected
+
+"""
+Planning: bot-command setting of which pins go where
+
+Flow:
+- Parse instructions of which pins go to which channel.
+    - !pin :emoji: <channel> "registers" any messages with :emoji: reacts to be pinned to <channel>
+    - <channel> should default to the chan where the command was issued.
+- Store which pins go to which channel.
+    - No reason why a specific emoji can't pipe stuff to >1 channel, so we'll have {emoji_id: {set,of,chan_ids}}.
+    - A global dict is fine to start. I don't think we need a db or anything here. Persistence schmersistence.
+- On react, check if the emoji is in the dict's keys.
+- If it is, pin it to the channels specified for that emoji.
+
+- Would need to support custom emoji as well as unicode emoji — not sure how hard that is.
+- Would be useful to have a command to show the current global dict. 
+- Would be ideal to limit these commands to specific user roles.
+
+- Do we keep the "hot"/soft-pin 15+ feature?
+    - Seems possible, but how do you determine output channel? 
+    - Another bot command: !pin hot <15>?
+    - If we're doing that, do we keep the "count" requirement, and just default it to 1? So the dict could be
+    - {emoji: {(chan_id_1, trigger_emoji_threshold), (chan_id_2, trigger_emoji_threshold)}}…
+    - Maybe this means you'd be better off using the chan_ids as keys and their triggers+thresholds as vals? Nah because we want to look up based on the emoji not the channel, and we don't really care about having different thresholds per emoji (e.g. 2 pins or 5 smileys or whatever).
+    - So we either handle the "hot" feature as a unique case, or ditch it. 
+    - I'd rather ditch it as it's not really useful for looseunit.
+    - Ergo: NO, we ditch the "hot" feature.
+- Let's remove the "count" requirement, and enforce that 1 of a given emoji is sufficient to be pinned.
+- How do we prevent dupes in this world? 
+    - More complex, because you want to prevent double-pinning to the _same_ channel, while allowing pinning to multiple channels.
+    - i.e. add the :pushpin: to push to one channel, then later add the :some_other_react: to push to a different channel, but not re-push to the first chan.
+    - This feels annoying.
+
+- Scenarios:
+    - 1 emoji posting to 1 chan
+    - 1 emoji posting to 2 different chans
+    - 2 different emoji posting to the same chan
+    - 2 different emoji posting to 2 independent chans
+"""
+which_pins_go_where = defaultdict(set)
+
+which_pins_go_where[pin_emoji].add(pin_channel_id)
+
 
 ## Thresholds
 trigger_react_req = 1 # Minimum total number of trigger reacts required to pin message
@@ -54,15 +93,15 @@ async def on_ready():
         if custom_emoji is None:
             logger.warning(f"Failed to retrieve custom emoji id {emoji_id}")
         else:
-            trigger_emojis.add(custom_emoji)
-
+            which_pins_go_where[custom_emoji].add(pin_channel_id)
+    logger.debug(f"Pin->Channel dict looks like: {which_pins_go_where}")
 
 @client.event
 async def on_reaction_add(reaction, user):
 
     message_id = str(reaction.message.id)
 
-    trigger_react_count = sum(react.count for react in reaction.message.reactions if react.emoji in trigger_emojis)
+    trigger_react_count = sum(react.count for react in reaction.message.reactions if react.emoji in which_pins_go_where)
     total_react_count = sum(react.count for react in reaction.message.reactions)
     logger.debug(f"Found {trigger_react_count} trigger reacts, {total_react_count} total reacts on msg {message_id}")
 
